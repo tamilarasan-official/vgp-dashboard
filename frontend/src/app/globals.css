@@ -1,0 +1,45 @@
+@import "tailwindcss";
+
+/* Colour tokens - one set for light mode, one for dark mode. Components use these, never fixed colours. */
+:root {
+  --background: #f6f5fa;
+  --foreground: #1b1630;
+  --card: #ffffff;
+  --line: #e4e0ef;
+  --muted: #6b6680;
+  --subtle: #f0edf7;
+  --accent: #6b2fd6;
+  --accent-strong: #5a22bd;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0f0d17;
+    --foreground: #ecebf3;
+    --card: #1a1726;
+    --line: #2e2a40;
+    --muted: #a19cb6;
+    --subtle: #25213a;
+    --accent: #9d72f0;
+    --accent-strong: #b08cf5;
+  }
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-line: var(--line);
+  --color-muted: var(--muted);
+  --color-subtle: var(--subtle);
+  --color-accent: var(--accent);
+  --color-accent-strong: var(--accent-strong);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+}

@@ -1,0 +1,446 @@
+// VGP Unified Dashboard - database schema
+// Foundation tables shared by every connector. Source-specific tables are added per integration.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// A VGP business unit shown on the dashboard (Wonder World, Ice Rink, Velocity, Fly Dining ...)
+model Property {
+  id        Int      @id @default(autoincrement())
+  code      String   @unique // WW, IR, VEL, FLY
+  name      String
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  syncRuns       SyncRun[]
+  fsPayments     FsPayment[]
+  fsGamePlays    FsGamePlay[]
+  fsDailyStats   FsDailyStat[]
+  fsTechPunches  FsTechPunch[]
+  tallyCompanies TallyCompany[]
+
+  @@map("property")
+}
+
+/// A source system we read data from (read-only).
+model SourceSystem {
+  id         Int      @id @default(autoincrement())
+  code       String   @unique // funsquare, tally, semnox, zoho, greythr, gbp, petpooja, thoughtmetrics
+  name       String
+  accessType String   @map("access_type") // cloud_api | agent_xml | agent_sql | oauth_api
+  status     String   @default("pending") // pending | access_confirmed | live | blocked
+  notes      String?
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  syncRuns SyncRun[]
+
+  @@map("source_system")
+}
+
+/// One execution of a connector sync (used for monitoring and "last synced at" on tiles).
+model SyncRun {
+  id             BigInt    @id @default(autoincrement())
+  sourceId       Int       @map("source_id")
+  propertyId     Int?      @map("property_id")
+  jobType        String    @map("job_type") // e.g. payments, billing, vouchers, masters
+  status         String    @default("running") // running | success | failed
+  startedAt      DateTime  @default(now()) @map("started_at")
+  finishedAt     DateTime? @map("finished_at")
+  rangeFrom      DateTime? @map("range_from")
+  rangeTo        DateTime? @map("range_to")
+  recordsRead    Int       @default(0) @map("records_read")
+  recordsWritten Int       @default(0) @map("records_written")
+  cursor         String? // last AlterID / last id / last timestamp for incremental sync
+  error          String?
+
+  source   SourceSystem @relation(fields: [sourceId], references: [id])
+  property Property?    @relation(fields: [propertyId], references: [id])
+
+  @@index([sourceId, startedAt])
+  @@map("sync_run")
+}
+
+// ---------------------------------------------------------------------------
+// FunSquare (Elesoft) - Velocity
+// Personal data (customer name, phone, card RFID/GUID) is NOT stored.
+// Times are stored as timestamptz; FunSquare sends IST local time.
+// ---------------------------------------------------------------------------
+
+/// Card recharge = money collected (payment/get).
+model FsPayment {
+  id             BigInt   @id @default(autoincrement())
+  propertyId     Int      @map("property_id")
+  paymentId      Int      @map("payment_id")
+  paymentMode    String   @map("payment_mode") // UPI, CARD, CASH, MIXED, OTHER
+  preAmount      Decimal  @map("pre_amount") @db.Decimal(12, 2)
+  rechargeAmount Decimal  @map("recharge_amount") @db.Decimal(12, 2)
+  discountAmount Decimal  @map("discount_amount") @db.Decimal(12, 2)
+  collectAmount  Decimal  @map("collect_amount") @db.Decimal(12, 2)
+  taxableAmount  Decimal  @map("taxable_amount") @db.Decimal(12, 2)
+  cgstAmount     Decimal  @map("cgst_amount") @db.Decimal(12, 2)
+  sgstAmount     Decimal  @map("sgst_amount") @db.Decimal(12, 2)
+  mainAmount     Decimal  @map("main_amount") @db.Decimal(12, 2)
+  bonusAmount    Decimal  @map("bonus_amount") @db.Decimal(12, 2)
+  postAmount     Decimal  @map("post_amount") @db.Decimal(12, 2)
+  cashier        String?
+  paidAt         DateTime @map("paid_at") @db.Timestamptz(6)
+  businessDate   DateTime @map("business_date") @db.Date
+  syncedAt       DateTime @default(now()) @map("synced_at")
+
+  property Property @relation(fields: [propertyId], references: [id])
+
+  @@unique([propertyId, paymentId])
+  @@index([propertyId, businessDate])
+  @@map("fs_payment")
+}
+
+/// One game play deducted from a card (billing/get).
+model FsGamePlay {
+  id           BigInt   @id @default(autoincrement())
+  propertyId   Int      @map("property_id")
+  billingId    Int      @map("billing_id")
+  game         String
+  preAmount    Decimal  @map("pre_amount") @db.Decimal(12, 2)
+  paidAmount   Decimal  @map("paid_amount") @db.Decimal(12, 2)
+  postAmount   Decimal  @map("post_amount") @db.Decimal(12, 2)
+  playedAt     DateTime @map("played_at") @db.Timestamptz(6)
+  businessDate DateTime @map("business_date") @db.Date
+  syncedAt     DateTime @default(now()) @map("synced_at")
+
+  property Property @relation(fields: [propertyId], references: [id])
+
+  @@unique([propertyId, billingId])
+  @@index([propertyId, businessDate])
+  @@map("fs_game_play")
+}
+
+/// Daily totals from statistics/get (cards issued, collection by mode, games, direct items).
+model FsDailyStat {
+  id             BigInt   @id @default(autoincrement())
+  propertyId     Int      @map("property_id")
+  businessDate   DateTime @map("business_date") @db.Date
+  cardsIssued    Int      @map("cards_issued")
+  cardsReturned  Int      @map("cards_returned")
+  cardCollection Decimal  @map("card_collection") @db.Decimal(12, 2)
+  directSale     Decimal  @map("direct_sale") @db.Decimal(12, 2)
+  grandTotal     Decimal  @map("grand_total") @db.Decimal(12, 2)
+  gamePlayCount  Int      @map("game_play_count")
+  gamePlayAmount Decimal  @map("game_play_amount") @db.Decimal(12, 2)
+  byPaymentMode  Json     @map("by_payment_mode")
+  byGame         Json     @map("by_game")
+  directItems    Json     @map("direct_items")
+  cardTypes      Json     @map("card_types")
+  syncedAt       DateTime @default(now()) @map("synced_at")
+
+  property Property @relation(fields: [propertyId], references: [id])
+
+  @@unique([propertyId, businessDate])
+  @@map("fs_daily_stat")
+}
+
+/// Tech-card swipes (techcard/get_punch_logs) - meaning to be confirmed with Elesoft.
+model FsTechPunch {
+  id           BigInt   @id @default(autoincrement())
+  propertyId   Int      @map("property_id")
+  punchId      Int      @map("punch_id")
+  game         String?
+  amount       Decimal  @db.Decimal(12, 2)
+  punchedAt    DateTime @map("punched_at") @db.Timestamptz(6)
+  businessDate DateTime @map("business_date") @db.Date
+  syncedAt     DateTime @default(now()) @map("synced_at")
+
+  property Property @relation(fields: [propertyId], references: [id])
+
+  @@unique([propertyId, punchId])
+  @@index([propertyId, businessDate])
+  @@map("fs_tech_punch")
+}
+
+// ---------------------------------------------------------------------------
+// Tally (TallyPrime) - pushed by the VGP agent inside VGP's network (read-only Export)
+// Tally amount sign: credit = positive, debit = negative (as Tally sends it).
+// ---------------------------------------------------------------------------
+
+model TallyCompany {
+  id              Int       @id @default(autoincrement())
+  name            String    @unique
+  booksFrom       DateTime? @map("books_from") @db.Date
+  propertyId      Int?      @map("property_id") // optional default property for this company
+  lastAlterId     BigInt    @default(0) @map("last_alter_id")
+  lastVoucherSync DateTime? @map("last_voucher_sync")
+  lastMasterSync  DateTime? @map("last_master_sync")
+  lastFullCheck   DateTime? @map("last_full_check")
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  property Property?      @relation(fields: [propertyId], references: [id])
+  groups   TallyGroup[]
+  ledgers  TallyLedger[]
+  vouchers TallyVoucher[]
+
+  @@map("tally_company")
+}
+
+model TallyGroup {
+  id                 Int     @id @default(autoincrement())
+  companyId          Int     @map("company_id")
+  name               String
+  parent             String?
+  primaryGroup       String  @map("primary_group") // top-level Tally group (e.g. Indirect Expenses)
+  isRevenue          Boolean @map("is_revenue") // true = Profit & Loss group
+  affectsGrossProfit Boolean @map("affects_gross_profit")
+  isDeemedPositive   Boolean @map("is_deemed_positive")
+  category           String? // dashboard category (mapping from accountant, later)
+
+  company TallyCompany @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, name])
+  @@map("tally_group")
+}
+
+model TallyLedger {
+  id             Int     @id @default(autoincrement())
+  companyId      Int     @map("company_id")
+  name           String
+  parent         String?
+  primaryGroup   String  @map("primary_group")
+  isRevenue      Boolean @map("is_revenue")
+  openingBalance Decimal @default(0) @map("opening_balance") @db.Decimal(16, 2)
+  closingBalance Decimal @default(0) @map("closing_balance") @db.Decimal(16, 2)
+  alterId        BigInt  @default(0) @map("alter_id")
+
+  company TallyCompany @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, name])
+  @@index([companyId, primaryGroup])
+  @@map("tally_ledger")
+}
+
+model TallyVoucher {
+  id            BigInt   @id @default(autoincrement())
+  companyId     Int      @map("company_id")
+  guid          String
+  alterId       BigInt   @map("alter_id")
+  masterId      BigInt?  @map("master_id")
+  date          DateTime @db.Date
+  voucherType   String   @map("voucher_type")
+  voucherNumber String?  @map("voucher_number")
+  partyLedger   String?  @map("party_ledger")
+  isCancelled   Boolean  @default(false) @map("is_cancelled")
+  isOptional    Boolean  @default(false) @map("is_optional")
+  isDeleted     Boolean  @default(false) @map("is_deleted")
+  syncedAt      DateTime @default(now()) @map("synced_at")
+
+  company TallyCompany       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  lines   TallyVoucherLine[]
+
+  @@unique([companyId, guid])
+  @@index([companyId, date])
+  @@index([companyId, alterId])
+  @@map("tally_voucher")
+}
+
+model TallyVoucherLine {
+  id               BigInt  @id @default(autoincrement())
+  voucherId        BigInt  @map("voucher_id")
+  lineNo           Int     @map("line_no")
+  ledgerName       String  @map("ledger_name")
+  amount           Decimal @db.Decimal(16, 2) // credit +, debit -
+  isDeemedPositive Boolean @map("is_deemed_positive")
+  costCentres      Json?   @map("cost_centres") // [{ category, name, amount }]
+
+  voucher TallyVoucher @relation(fields: [voucherId], references: [id], onDelete: Cascade)
+
+  @@index([voucherId])
+  @@index([ledgerName])
+  @@map("tally_voucher_line")
+}
+
+/// Last check-in from each on-site agent (Tally / Semnox).
+model AgentHeartbeat {
+  agentId  String   @id @map("agent_id")
+  lastSeen DateTime @default(now()) @map("last_seen")
+  info     Json
+
+  @@map("agent_heartbeat")
+}
+
+// ---------------------------------------------------------------------------
+// Zoho CRM (VGP Wonder World org - holds leads for Wonder World, Ice Rink, Fly Dining)
+// Personal data (names, phones, emails, addresses, notes, call subjects) is NOT stored.
+// Only VGP's own phone lines (+91 8065 xxxxxx Smartflo numbers) are kept, never customer numbers.
+// ---------------------------------------------------------------------------
+
+model ZohoLead {
+  id           BigInt   @id // Zoho record id
+  createdTime  DateTime @map("created_time") @db.Timestamptz(3)
+  modifiedTime DateTime @map("modified_time") @db.Timestamptz(3)
+  industry     String? // used by VGP as the property tag (VGP Wonder World / Ice Rink / Fly Dining)
+  leadSource   String?  @map("lead_source")
+  leadStatus   String?  @map("lead_status")
+  offer        String? // "Company" field - holds the Facebook ad offer name
+  vgpLine      String?  @map("vgp_line") // VGP number the customer called
+  ownerId      String?  @map("owner_id")
+  converted    Boolean  @default(false)
+  isDeleted    Boolean  @default(false) @map("is_deleted")
+  syncedAt     DateTime @default(now()) @map("synced_at")
+
+  @@index([createdTime])
+  @@index([modifiedTime])
+  @@map("zoho_lead")
+}
+
+model ZohoCall {
+  id             BigInt    @id
+  startTime      DateTime? @map("start_time") @db.Timestamptz(3)
+  createdTime    DateTime  @map("created_time") @db.Timestamptz(3)
+  modifiedTime   DateTime  @map("modified_time") @db.Timestamptz(3)
+  callType       String    @map("call_type") // Inbound | Outbound | Missed
+  callResult     String?   @map("call_result")
+  callPurpose    String?   @map("call_purpose")
+  outgoingStatus String?   @map("outgoing_status")
+  durationSec    Int?      @map("duration_sec")
+  vgpLine        String?   @map("vgp_line")
+  leadId         BigInt?   @map("lead_id") // related lead/contact record id (Who_Id)
+  ownerId        String?   @map("owner_id")
+  isDeleted      Boolean   @default(false) @map("is_deleted")
+  syncedAt       DateTime  @default(now()) @map("synced_at")
+
+  @@index([startTime])
+  @@index([modifiedTime])
+  @@map("zoho_call")
+}
+
+/// CRM users (VGP staff) - used to show calls/leads per staff member.
+model ZohoUser {
+  id        String   @id
+  name      String
+  active    Boolean  @default(true)
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("zoho_user")
+}
+
+/// Which property each VGP phone line belongs to (filled in by VGP).
+model ZohoLine {
+  number       String   @id // +918065061095
+  propertyCode String?  @map("property_code") // WW | IR | FLY | null = not mapped yet
+  label        String?
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@map("zoho_line")
+}
+
+// ---------------------------------------------------------------------------
+// greytHR (HR / attendance). Personal data (name, phone, email, date of birth,
+// leave reasons/remarks) is NOT stored - only employee code, dates and status.
+// ---------------------------------------------------------------------------
+
+model HrEmployee {
+  id           Int       @id // greytHR employeeId
+  employeeNo   String    @map("employee_no")
+  dateOfJoin   DateTime? @map("date_of_join") @db.Date
+  leavingDate  DateTime? @map("leaving_date") @db.Date
+  leftOrg      Boolean   @default(false) @map("left_org")
+  status       Int?
+  lastModified DateTime? @map("last_modified")
+  syncedAt     DateTime  @default(now()) @map("synced_at")
+
+  @@map("hr_employee")
+}
+
+/// Employee category assignments (Location / Department / ... as greytHR ids).
+model HrEmployeeCategory {
+  id            Int       @id // greytHR assignment id
+  employeeId    Int       @map("employee_id")
+  categoryType  Int       @map("category_type")
+  valueId       Int       @map("value_id")
+  effectiveFrom DateTime? @map("effective_from") @db.Date
+  effectiveTo   DateTime? @map("effective_to") @db.Date
+
+  @@index([employeeId])
+  @@map("hr_employee_category")
+}
+
+/// Names for greytHR category ids (filled from VGP HR). valueId 0 = the category type's own name.
+model HrCategoryLabel {
+  categoryType Int     @map("category_type")
+  valueId      Int     @map("value_id")
+  label        String
+  propertyCode String? @map("property_code")
+
+  @@id([categoryType, valueId])
+  @@map("hr_category_label")
+}
+
+model HrAttendanceDay {
+  employeeId    Int       @map("employee_id")
+  date          DateTime  @db.Date
+  shiftName     String?   @map("shift_name")
+  firstIn       DateTime? @map("first_in") @db.Timestamptz(3)
+  lastOut       DateTime? @map("last_out") @db.Timestamptz(3)
+  session1      String? // P, A, WOFF, OFF, CL ...
+  session2      String?
+  dayType       String?   @map("day_type")
+  workMin       Int?      @map("work_min")
+  actualWorkMin Int?      @map("actual_work_min")
+  leaveCode     String?   @map("leave_code")
+  onLeave       Boolean   @default(false) @map("on_leave")
+  lateIn        Boolean   @default(false) @map("late_in")
+  earlyOut      Boolean   @default(false) @map("early_out")
+  syncedAt      DateTime  @default(now()) @map("synced_at")
+
+  @@id([employeeId, date])
+  @@index([date])
+  @@map("hr_attendance_day")
+}
+
+// ---------------------------------------------------------------------------
+// Dashboard users and manual uploads (Tally Excel, Thought Metrics reports)
+// ---------------------------------------------------------------------------
+
+/// Dashboard login. role: admin | viewer | tally_uploader | feedback_uploader
+model AppUser {
+  id           Int       @id @default(autoincrement())
+  email        String    @unique
+  name         String
+  passwordHash String    @map("password_hash")
+  role         String    @default("viewer")
+  active       Boolean   @default(true)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  lastLoginAt  DateTime? @map("last_login_at") @db.Timestamptz(3)
+
+  uploads Upload[]
+
+  @@map("app_user")
+}
+
+/// A file uploaded by VGP staff. The last upload per source is shown as "last synced".
+model Upload {
+  id           Int       @id @default(autoincrement())
+  source       String // tally | thoughtmetrics
+  reportType   String    @map("report_type")
+  company      String?
+  periodFrom   DateTime? @map("period_from") @db.Date
+  periodTo     DateTime? @map("period_to") @db.Date
+  fileName     String    @map("file_name")
+  mimeType     String    @map("mime_type")
+  size         Int
+  content      Bytes
+  sheets       Json? // parsed rows: [{ name, rows: (string|number|null)[][] }]
+  rowCount     Int       @default(0) @map("row_count")
+  note         String?
+  uploadedById Int       @map("uploaded_by_id")
+  uploadedAt   DateTime  @default(now()) @map("uploaded_at") @db.Timestamptz(3)
+
+  uploadedBy AppUser @relation(fields: [uploadedById], references: [id])
+
+  @@index([source, uploadedAt])
+  @@map("upload")
+}

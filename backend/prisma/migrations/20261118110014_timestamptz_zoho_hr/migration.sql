@@ -1,0 +1,12 @@
+-- AlterTable
+ALTER TABLE "hr_attendance_day" ALTER COLUMN "first_in" SET DATA TYPE TIMESTAMPTZ(3) USING "first_in" AT TIME ZONE 'UTC',
+ALTER COLUMN "last_out" SET DATA TYPE TIMESTAMPTZ(3) USING "last_out" AT TIME ZONE 'UTC';
+
+-- AlterTable
+ALTER TABLE "zoho_call" ALTER COLUMN "start_time" SET DATA TYPE TIMESTAMPTZ(3) USING "start_time" AT TIME ZONE 'UTC',
+ALTER COLUMN "created_time" SET DATA TYPE TIMESTAMPTZ(3) USING "created_time" AT TIME ZONE 'UTC',
+ALTER COLUMN "modified_time" SET DATA TYPE TIMESTAMPTZ(3) USING "modified_time" AT TIME ZONE 'UTC';
+
+-- AlterTable
+ALTER TABLE "zoho_lead" ALTER COLUMN "created_time" SET DATA TYPE TIMESTAMPTZ(3) USING "created_time" AT TIME ZONE 'UTC',
+ALTER COLUMN "modified_time" SET DATA TYPE TIMESTAMPTZ(3) USING "modified_time" AT TIME ZONE 'UTC';

@@ -1,0 +1,50 @@
+# VGP Executive Dashboard - Dokploy (Docker Compose)
+# Only the frontend is published (add a domain for service "frontend", port 3000 in Dokploy).
+# The backend is reachable only inside this compose network - it is NOT exposed to the internet.
+# All values below come from Dokploy -> Environment.
+
+services:
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    expose:
+      - "4000"
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      PORT: 4000
+      SESSION_SECRET: ${SESSION_SECRET}
+      SESSION_HOURS: ${SESSION_HOURS:-12}
+      ADMIN_API_KEY: ${ADMIN_API_KEY}
+      SYNC_ENABLED: ${SYNC_ENABLED:-true}
+      FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-}
+      # FunSquare (Velocity)
+      FUNSQUARE_BASE_URL: ${FUNSQUARE_BASE_URL}
+      FUNSQUARE_DOMAIN: ${FUNSQUARE_DOMAIN}
+      FUNSQUARE_APP_BASIC: ${FUNSQUARE_APP_BASIC}
+      FUNSQUARE_USERNAME: ${FUNSQUARE_USERNAME}
+      FUNSQUARE_PASSWORD: ${FUNSQUARE_PASSWORD}
+      FUNSQUARE_PROPERTY_CODE: ${FUNSQUARE_PROPERTY_CODE:-VEL}
+      # Zoho CRM
+      ZOHO_ACCOUNTS_URL: ${ZOHO_ACCOUNTS_URL:-https://accounts.zoho.in}
+      ZOHO_API_DOMAIN: ${ZOHO_API_DOMAIN:-https://www.zohoapis.in}
+      ZOHO_CLIENT_ID: ${ZOHO_CLIENT_ID}
+      ZOHO_CLIENT_SECRET: ${ZOHO_CLIENT_SECRET}
+      ZOHO_REFRESH_TOKEN: ${ZOHO_REFRESH_TOKEN}
+      # greytHR
+      GREYTHR_DOMAIN: ${GREYTHR_DOMAIN}
+      GREYTHR_API_USER: ${GREYTHR_API_USER}
+      GREYTHR_API_PASSWORD: ${GREYTHR_API_PASSWORD}
+      # On-site agents (Semnox later)
+      AGENT_TOKENS: ${AGENT_TOKENS:-}
+
+  frontend:
+    build: ./frontend
+    restart: unless-stopped
+    expose:
+      - "3000"
+    environment:
+      API_URL: http://backend:4000/api
+      COOKIE_SECURE: ${COOKIE_SECURE:-true}
+    depends_on:
+      backend:
+        condition: service_healthy
