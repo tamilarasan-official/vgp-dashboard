@@ -19,7 +19,8 @@ export async function login(_prev: LoginState, form: FormData): Promise<LoginSta
       body: JSON.stringify({ email, password }),
       cache: 'no-store',
     });
-  } catch {
+  } catch (e) {
+    console.error(`Login: backend not reachable at ${API_URL}:`, (e as Error).cause ?? (e as Error).message);
     return { error: 'Server is not reachable. Please try again.' };
   }
   const data = (await res.json().catch(() => ({}))) as { token?: string; expiresAt?: string; message?: string };

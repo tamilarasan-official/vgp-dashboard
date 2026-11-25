@@ -36,6 +36,8 @@ services:
       GREYTHR_API_PASSWORD: ${GREYTHR_API_PASSWORD}
       # On-site agents (Semnox later)
       AGENT_TOKENS: ${AGENT_TOKENS:-}
+    networks:
+      - internal
 
   frontend:
     build: ./frontend
@@ -48,3 +50,12 @@ services:
     depends_on:
       backend:
         condition: service_healthy
+    networks:
+      - internal          # to reach the backend
+      - dokploy-network   # so Dokploy/Traefik can route the domain to it
+
+networks:
+  internal:
+    driver: bridge
+  dokploy-network:
+    external: true
