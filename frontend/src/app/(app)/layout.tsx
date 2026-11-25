@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { getMe } from '@/lib/api';
 import { NavLinks } from './nav-links';
+import { ThemeToggle } from '@/components/theme-toggle';
 
 const ALL_LINKS = [
   { href: '/', label: 'Overview', roles: ['admin', 'viewer'] },
@@ -39,6 +40,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
               <span className="block">{me.name}</span>
               <span className="block text-xs text-muted">{ROLE_LABEL[me.role] ?? me.role}</span>
             </span>
+            <ThemeToggle />
             <a href="/logout" className="rounded border border-line px-3 py-1 hover:bg-subtle">Sign out</a>
           </div>
         </div>

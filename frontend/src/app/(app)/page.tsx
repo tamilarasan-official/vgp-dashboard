@@ -157,7 +157,7 @@ export default async function OverviewPage() {
               return (
                 <li key={s.code} className="flex items-center justify-between gap-2 rounded-lg bg-subtle px-3 py-2">
                   <span className="truncate">{s.name.split(' (')[0]}</span>
-                  <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${st.cls}`}>{st.label}</span>
+                  <span className={`whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ${st.cls}`}>{st.label}</span>
                 </li>
               );
             })}

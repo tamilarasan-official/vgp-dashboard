@@ -17,13 +17,19 @@ export const metadata: Metadata = {
   description: "Executive intelligence and operations dashboard for VGP",
 };
 
+// Runs before first paint: applies the saved theme (light / dark / system) so the page never flashes.
+const themeScript = `(function(){try{var c=localStorage.getItem('vgp-theme')||'system';var d=c==='dark'||(c==='system'&&window.matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.dataset.theme=d?'dark':'light';}catch(e){}})();`;
+
 export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >

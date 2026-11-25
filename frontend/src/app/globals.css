@@ -1,28 +1,46 @@
 @import "tailwindcss";
 
+/* Dark mode follows the data-theme attribute on <html> (set before paint by the theme script in layout.tsx). */
+@custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *));
+
 /* Colour tokens - one set for light mode, one for dark mode. Components use these, never fixed colours. */
 :root {
   --background: #f6f5fa;
   --foreground: #1b1630;
   --card: #ffffff;
   --line: #e4e0ef;
-  --muted: #6b6680;
+  --muted: #625d78;
   --subtle: #f0edf7;
   --accent: #6b2fd6;
   --accent-strong: #5a22bd;
+  color-scheme: light;
 }
 
+/* No script yet (or it failed): follow the device setting. */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme=light]) {
     --background: #0f0d17;
     --foreground: #ecebf3;
     --card: #1a1726;
     --line: #2e2a40;
-    --muted: #a19cb6;
+    --muted: #a7a2bc;
     --subtle: #25213a;
     --accent: #9d72f0;
     --accent-strong: #b08cf5;
+    color-scheme: dark;
   }
+}
+
+:root[data-theme=dark] {
+  --background: #0f0d17;
+  --foreground: #ecebf3;
+  --card: #1a1726;
+  --line: #2e2a40;
+  --muted: #a7a2bc;
+  --subtle: #25213a;
+  --accent: #9d72f0;
+  --accent-strong: #b08cf5;
+  color-scheme: dark;
 }
 
 @theme inline {
