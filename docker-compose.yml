@@ -37,7 +37,10 @@ services:
       # On-site agents (Semnox later)
       AGENT_TOKENS: ${AGENT_TOKENS:-}
     networks:
-      - internal
+      internal:
+        # Unique name - "backend" can clash with other apps' containers on Dokploy's shared network.
+        aliases:
+          - vgp-dashboard-api
 
   frontend:
     build: ./frontend
@@ -45,7 +48,7 @@ services:
     expose:
       - "3000"
     environment:
-      API_URL: http://backend:4000/api
+      API_URL: http://vgp-dashboard-api:4000/api
       COOKIE_SECURE: ${COOKIE_SECURE:-true}
     depends_on:
       backend:
